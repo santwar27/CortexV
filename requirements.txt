@@ -1,0 +1,69 @@
+# CORTEX dependencies — pinned versions (Python 3.12+)
+# Regenerate with: ./venv/bin/pip freeze > requirements.txt
+
+# LLM runtime client
+ollama==0.6.2
+
+# Long-term memory: SQLite-backed Palace (src/memory/palace.py). No extra dep —
+# numpy (transitive via ddgs/faster-whisper) covers embedding math. Embedding
+# vectors come from Ollama's nomic-embed-text via HTTP. ChromaDB decommissioned
+# 2026-05-22.
+
+# HTTP API
+fastapi==0.128.8
+uvicorn==0.39.0
+
+# Dashboard templating (src/ui — read-only web UI at /ui)
+Jinja2==3.1.6
+MarkupSafe==3.0.3
+
+# Rate limiting (per-IP throttle on /ask* endpoints)
+slowapi==0.1.9
+limits==5.8.0
+
+# Data validation
+pydantic==2.13.4
+pydantic-settings==2.11.0
+
+# Document parsing (RAG)
+pypdf==6.11.0
+python-docx==1.2.0
+
+# Web search tool
+ddgs==9.8.0
+
+# Vision tool transport
+requests==2.32.5
+
+# Config / secrets
+python-dotenv==1.2.1
+
+# Google APIs (Etapa 8 — Cortex Agent: Gmail, Calendar)
+google-auth==2.34.0
+google-auth-oauthlib==1.2.1
+google-api-python-client==2.149.0
+
+# Voice interface (Etapa 9 — wake word, STT, TTS, mic capture)
+openwakeword==0.6.0
+faster-whisper==1.2.1
+av==17.0.1  # faster-whisper 1.2.1 decode_audio passes metadata_errors (removed in PyAV 19); the UI microphone route uses it to decode browser audio.
+piper-tts==1.4.2
+sounddevice==0.5.5
+
+# Speaker identity (Onda 12 — local voice verification; ONNX runtime only,
+# no torch). Model binary lives in ~/.cortex/models (pinned URL + sha256 in
+# src/voice/speaker_id.py); the voiceprint NEVER ships in git.
+sherpa-onnx==1.13.2
+
+# Spotify Web API (Etapa 10 — voice/text music control)
+spotipy==2.24.0
+
+# On-device OCR via Apple Vision (Fitness slice 3.5 — nutrition labels). macOS-only;
+# pulls in pyobjc-core/Cocoa/Quartz. Reads labels locally, no cloud (SOBERANIA).
+pyobjc-framework-Vision==12.2
+pyobjc-framework-Quartz==12.2
+
+# Test framework (dev only — not required at runtime)
+pytest==9.0.3
+pytest-asyncio==1.3.0
+

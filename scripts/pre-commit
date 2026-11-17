@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# Cortex pre-commit hook — runs the test suite + behavioural evals
+# before every commit. Blocks the commit on any failure.
+#
+# Installed via `bash scripts/install-hooks.sh` (which symlinks this
+# file into .git/hooks/pre-commit). Keeping the source under
+# scripts/ means the hook is versioned in the repo — every Claude
+# instance and the user himself get the same gate.
+#
+# Skip in emergencies with `git commit --no-verify`, but DON'T make
+# that a habit. The whole point is that regressions get caught here,
+# not in production.
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+# --- .env guard ------------------------------------------
+# Block any staged env file from entering a commit. .env is gitignored, but
+# `git add -f` or a renamed copy bypasses that. the book's author committed a .env by
+# accident in 2023 — the key was abused within 12 minutes. Fail closed: this
+# runs first, before the (slow) test suite, so a leak dies in milliseconds.
+# Templates (.env.example/.sample/.template/.dist) are allowed — they hold
+# placeholders, not secrets.
+STAGED_ENV="$(git diff --cached --name-only --diff-filter=AM \
+    | grep -E '(^|/)\.env([./]|$)|\.env$' \
+    | grep -vE '\.(example|sample|template|dist)$' || true)"
+if [ -n "$STAGED_ENV" ]; then
+    echo "[pre-commit] ✗ BLOCKED: refusing to commit env file(s) that may hold secrets:"
+    echo "$STAGED_ENV" | sed 's/^/                 /'
+    echo "             If it is a template, rename it .env.example (allowed)."
+    echo "             If you are CERTAIN it has no secrets: git commit --no-verify"
+    exit 1
+fi
+
+PY="venv/bin/python"
+if [ ! -x "$PY" ]; then
+    echo "[pre-commit] ERROR: venv/bin/python not found at $PY"
+    echo "             Run from the repo root with the venv installed."
+    exit 1
+fi
+
+# Tee to a log so failure output is recoverable even if the terminal
+# scrolled away. Last 200 lines kept; older ones overwritten.
+LOG="logs/pre-commit.log"
+mkdir -p logs
+
+echo "[pre-commit] ▸ running pytest" | tee "$LOG"
+if ! "$PY" -m pytest -q --tb=short 2>&1 | tee -a "$LOG"; then
+    echo
+    echo "[pre-commit] ✗ pytest failed — commit blocked."
+    echo "             See logs/pre-commit.log for full output."
+    echo "             Skip with: git commit --no-verify (use sparingly)."
+    exit 1
+fi
+
+echo
+echo "[pre-commit] ▸ running behavioural evals" | tee -a "$LOG"
+if ! "$PY" -m evals 2>&1 | tee -a "$LOG"; then
+    echo
+    echo "[pre-commit] ✗ evals failed — commit blocked."
+    echo "             Either the regression is real (fix and re-stage)"
+    echo "             or the case needs updating (do it explicitly in"
+    echo "             the same commit, with a JOURNAL note). Skip with:"
+    echo "             git commit --no-verify (use sparingly)."
+    exit 1
+fi
+
+# --- Hand the result to pre-push (s82) -----------------------------------
+# Record the TREE this commit is about to carry, so `git push` can prove the
+# state is green instead of spending another ~7 minutes proving it again.
+# That re-run was not merely wasteful: it held git's SSH connection idle
+# past GitHub's timeout, and pushes died with a silent SIGPIPE (see the
+# header of scripts/pre-push).
+#
+# `git write-tree` turns the CURRENT INDEX into a tree object — the exact
+# tree the commit gets, and the exact thing pre-push looks up. A commit made
+# with --no-verify never reaches this line, so it stays unverified and still
+# triggers the full run at push time. Best-effort: a failure here must never
+# block a commit whose suite just went green.
+LEDGER=".git/cortex-verified-trees"
+if TREE="$(git write-tree 2>/dev/null)"; then
+    {
+        echo "$TREE" >> "$LEDGER"
+        if [ "$(wc -l < "$LEDGER")" -gt 200 ]; then
+            tail -n 200 "$LEDGER" > "$LEDGER.tmp" && mv "$LEDGER.tmp" "$LEDGER"
+        fi
+    } 2>/dev/null || true
+fi
+
+echo
+echo "[pre-commit] ✓ all green — commit allowed"
+exit 0

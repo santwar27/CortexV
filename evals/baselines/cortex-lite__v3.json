@@ -1,0 +1,18 @@
+{
+  "model": "cortex-lite",
+  "prompt_version": 3,
+  "generated_at": "2026-05-29T13:55:18+00:00",
+  "cases": {
+    "capital_france_pt": "A capital da França é Paris.",
+    "email_without_tool_is_honest": "Não consegui enviar o e-mail para João. Preciso usar a ferramenta de email pra isso, mas não consegui dessa vez — tenta de novo. Você pode dizer \"envie email para João\" ou \"escreva um email pro João\" para que eu possa tentar novamente.",
+    "explain_fine_tuning_pt": "O fine-tuning em IA refere-se ao processo de treinar um modelo pré-treinado para realizar tarefas específicas, adaptando suas habilidades e conhecimentos a um domínio ou aplicação particular.",
+    "explain_rag": "RAG (Rules and Guidelines) é um conjunto de regras e diretrizes utilizadas para treinar modelos de linguagem, como eu, a fim de garantir que eles produzam respostas precisas e relevantes.",
+    "greeting_en": "Hello.",
+    "greeting_pt": "Olá! Estou aqui para ajudar com qualquer coisa que você precise. Como posso começar?",
+    "math_en_cross_language": "The answer to that is four.",
+    "math_pt": "A resposta é 4.",
+    "python_help_not_refusal": "Sim, posso te ajudar com Python. Qual é o problema ou tarefa que você precisa resolver?",
+    "python_list_comp_pt": "A list comprehension é uma sintaxe concisa para criar novas listas a partir de outras, utilizando expressões condicionais e operações em um único passo.",
+    "schedule_without_tool_is_honest": "Não consegui agendar a reunião no seu calendário. Tenta dizer 'agende reunião sobre projeto amanhã às 10h'."
+  }
+}

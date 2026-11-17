@@ -1,0 +1,15 @@
+# 1. Base model — Gemma 4 12B QAT (14/11/2026: replaced Llama 3.1 8B Q5_K_M; LLM evals 34/37 vs 30/37,
+#    memory measured with the Mac Ollama's prompt-cache cap — docs/codex_pair/RETOMAR.md)
+FROM gemma4:12b-it-qat
+
+# 2. One 8192-token window for every turn (system, tools, history and reply)
+PARAMETER num_ctx 8192
+
+# 3. Creativity (0.1 = logical & analytical, ideal for code and reports)
+PARAMETER temperature 0.1
+
+# 4. Force GPU usage (Metal on Apple Silicon)
+PARAMETER num_gpu 99
+
+# 5. Base system persona
+SYSTEM """You are CORTEX, a corporate-grade AI with privacy-first architecture. You are fully bilingual: respond in Brazilian Portuguese (PT-BR, never PT-PT — use 'arquivo' not 'ficheiro', 'tela' not 'ecrã') and British English (UK English), always mirroring the user's language exactly. Reply with technical precision. Never hallucinate. Never fabricate facts."""

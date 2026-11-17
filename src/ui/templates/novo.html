@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light"><title>CORTEX</title><link rel="stylesheet" href="/ui/static/novo/style.css"><link rel="stylesheet" href="/ui/static/novo/secundario.css"><link rel="stylesheet" href="/ui/static/novo/avatar.css"><link rel="stylesheet" href="/ui/static/novo/quarto.css"></head>
+<body>
+<svg class="sprite" xmlns="http://www.w3.org/2000/svg"><defs>
+<symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z"/></symbol>
+<symbol id="i-create" viewBox="0 0 24 24"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/><path d="m20 2 .6 1.4L22 4l-1.4.6L20 6l-.6-1.4L18 4l1.4-.6Z"/></symbol>
+<symbol id="i-continue" viewBox="0 0 24 24"><path d="M3 10a9 9 0 1 1 1.8 7.5M3 4v6h6M12 7v5l3 2"/></symbol>
+<symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7M5 9v12h5v-7h4v7h5V9"/></symbol>
+<symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7V4h6l3 3h9v13H3Z"/></symbol>
+<symbol id="i-file" viewBox="0 0 24 24"><path d="M5 3h9l5 5v13H5ZM14 3v6h5M8 13h8M8 17h6"/></symbol>
+<symbol id="i-orbit" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-dasharray="7 2"/><path d="M5.6 5.6c3.2 3.4 3.2 9.4 0 12.8"/><path d="M18.4 5.6c-3.2 3.4-3.2 9.4 0 12.8"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></symbol>
+<symbol id="i-send" viewBox="0 0 24 24"><path d="m5 12 14-7-5 15-3-6-6-2Zm6 2 8-9"/></symbol>
+<symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2m-7 9v3m-4 0h8"/></symbol>
+<symbol id="i-attach" viewBox="0 0 24 24"><path d="m9 16 8-8a3 3 0 0 0-4-4L4 13a5 5 0 0 0 7 7L21 10M7 14l8-8"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"/></symbol>
+<symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+<symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h16M4 17h16M8 4v6m8 4v6"/></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+</defs></svg>
+<div class="app-shell">
+<aside class="sidebar" aria-label="Navegação principal">
+<a class="brand" href="#inicio" aria-label="CORTEX início"><svg class="brand-mark" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.5" stroke-dasharray="7.5 2"/><path d="M5.3 5.3c3.4 3.6 3.4 9.8 0 13.4"/><path d="M18.7 5.3c-3.4 3.6-3.4 9.8 0 13.4"/><g style="fill:var(--accent);stroke:none"><circle cx="5.3" cy="5.3" r="1.3"/><circle cx="5.3" cy="18.7" r="1.3"/><circle cx="18.7" cy="5.3" r="1.3"/><circle cx="18.7" cy="18.7" r="1.3"/></g></svg><span>CORTEX</span></a>
+<button class="new-chat" id="new-chat"><span class="plus">＋</span> Nova conversa</button>
+<nav class="main-nav"><button class="nav-item active" data-page="home"><svg><use href="#i-home"/></svg>Início</button><button class="nav-item" data-page="projects"><svg><use href="#i-folder"/></svg>Projetos</button><button class="nav-item" data-page="chat"><svg><use href="#i-chat"/></svg>Conversas</button></nav>
+<div class="nav-section"><h2>Projetos</h2></div>
+<div class="nav-section recent"><h2>Recentes</h2></div>
+<div class="sidebar-bottom"><span><i class="status-dot"></i><small></small></span><button class="icon-button" id="theme" aria-label="Alternar tema claro e escuro" title="Alternar tema"><svg><use href="#i-sun"/></svg></button></div>
+</aside>
+<main class="workspace">
+<header class="topbar"><button class="icon-button mobile-menu" aria-label="Abrir navegação"><svg><use href="#i-menu"/></svg></button><div class="breadcrumb"><svg><use href="#i-orbit"/></svg><span id="breadcrumb"></span></div><div class="top-right"><span class="prototype-badge"></span><span class="privacy"><i class="status-dot"></i></span><a class="logout" href="/ui/logout">Sair</a><button class="icon-button" id="settings" title="Central do CORTEX" aria-label="Abrir central do CORTEX" aria-haspopup="dialog"><svg><use href="#i-grid"/></svg></button></div></header>
+<div class="content-scroll" id="content-scroll">
+<section class="stage" aria-label="Núcleo CORTEX"><div id="cortex-duck-dock" class="duck-dock" aria-hidden="true">
+        <div id="cortex-duck" class="duck" data-state="idle" data-eyes="open" data-part="none" data-gesture="none" data-frozen="false" data-reduced="false" data-paused="false">
+          <div class="duck-body"><div class="duck-pose">
+            <svg class="duck-racket" viewBox="0 0 1254 1254" shape-rendering="crispEdges" aria-hidden="true"></svg>
+            <img class="duck-source" src="/ui/static/novo/avatar/duckcortex.png" width="1254" height="1254" alt="" draggable="false">
+            <div class="duck-face">
+              <img class="duck-part duck-head" src="/ui/static/novo/avatar/duckcortex.png" width="1254" height="1254" alt="" draggable="false">
+              <span class="duck-effect eye-patch left-eye"></span><span class="duck-effect eye-patch right-eye"></span>
+              <div class="duck-eye-window left-eye-window"><img class="duck-part eye-copy left-eye-copy" src="/ui/static/novo/avatar/duckcortex.png" width="1254" height="1254" alt="" draggable="false"></div>
+              <div class="duck-eye-window right-eye-window"><img class="duck-part eye-copy right-eye-copy" src="/ui/static/novo/avatar/duckcortex.png" width="1254" height="1254" alt="" draggable="false"></div>
+              <span class="duck-effect antenna-glow"></span><span class="duck-effect ear-glow"></span><span class="duck-effect eye-glow left-eye"></span><span class="duck-effect eye-glow right-eye"></span>
+            </div>
+            <img class="duck-part duck-wing" src="/ui/static/novo/avatar/duckcortex.png" width="1254" height="1254" alt="" draggable="false">
+            <span class="duck-effect wing-glow"></span>
+          </div></div>
+        </div>
+      </div><div class="orb-container"><canvas id="orb" aria-label="Núcleo CORTEX" role="img"></canvas></div><div class="orb-status" aria-live="polite"><i class="status-dot"></i><span id="state-label"></span></div></section>
+<section class="welcome" id="welcome"><p class="eyebrow">SEU ESPAÇO PARA CONSTRUIR</p><h1>{{ greeting }}<span>.</span></h1><p>O que vamos construir hoje?</p></section>
+<div class="modes" role="group" aria-label="Modo de trabalho"><button class="mode active" data-mode="conversar" aria-pressed="true"><svg><use href="#i-chat"/></svg>Conversar</button><button class="mode" data-mode="criar" aria-pressed="false"><svg><use href="#i-create"/></svg>Criar</button><button class="mode" data-mode="continuar" aria-pressed="false"><svg><use href="#i-continue"/></svg>Continuar</button></div>
+<section class="resume-card" id="resume-card" hidden><div class="project-art" aria-hidden="true"><svg><use href="#i-orbit"/></svg></div><div class="resume-copy"><div class="card-title"><h2></h2><span class="tag"></span></div><p></p></div><button id="resume">Retomar projeto<svg><use href="#i-arrow"/></svg></button><button type="button" id="delete-project">Excluir projeto</button></section>
+<section class="projects-panel" id="projects-panel" hidden><h2>Seus projetos</h2></section>
+<section class="messages" id="messages" aria-label="Conversa" aria-live="polite"></section>
+</div>
+<footer class="composer-area"><div class="attachment-list" id="attachment-list"></div><form class="composer" id="composer"><button type="button" class="icon-button" id="attach" aria-label="Anexar arquivo"><svg><use href="#i-attach"/></svg></button><input id="file" type="file" multiple hidden><label class="sr-only" for="message-input">Mensagem para o CORTEX</label><textarea id="message-input" rows="1" placeholder="Escreva ou fale com o CORTEX..."></textarea><button type="button" class="icon-button" id="mic" aria-label="Gravar voz" aria-pressed="false"><svg><use href="#i-mic"/></svg></button><button class="send" id="send" aria-label="Enviar mensagem"><svg><use href="#i-send"/></svg></button></form><p class="composer-note"><span>Seus projetos continuam de onde você parou.</span><span class="demo-note"></span></p></footer>
+</main></div>
+<dialog id="controls" aria-labelledby="appearance-title"><form method="dialog"><button type="button" class="return-hub" data-return-hub="appearance">← Retomar central</button><div class="dialog-heading"><div><p class="eyebrow">LABORATÓRIO VISUAL</p><h2 id="appearance-title">Aparência e núcleo</h2></div><button class="close-button" aria-label="Fechar ajustes">×</button></div><p class="control-description">Experimente os estados da animação. Tudo nesta tela é uma simulação local.</p><label for="state-select">Estado de demonstração</label><select id="state-select"><option value="idle">Em repouso</option><option value="thinking">Pensando</option><option value="searching">Buscando na web</option><option value="reading">Lendo</option><option value="writing">Escrevendo</option><option value="listening">Ouvindo</option><option value="speaking">Respondendo</option></select><label for="gesture-select">Gesto de demonstração</label><select id="gesture-select"><option value=""></option><option value="look">Olhar em volta</option><option value="hop">Pulinho</option><option value="wave">Dar oi</option><option value="stretch">Espreguiçar</option><option value="racket">Raquete</option><option value="turn">Voltinha</option><option value="walk">Andar</option><option value="pirouette">Pirueta</option><option value="flap">Bater as asas</option><option value="stumble">Tropeço</option><option value="dance">Dancinha</option><option value="peek">Esconde-esconde</option><option value="cheer">Comemorar</option><option value="no">Dizer não</option><option value="startle">Susto</option><option value="compliment">Elogio</option><option value="poop">Cocô</option><option value="knock">Toc-toc</option><option value="sleep">Dormir</option></select><label class="check-label"><input type="checkbox" id="reduce-motion">Reduzir movimento</label><label for="intensity">Intensidade dos efeitos</label><input type="range" id="intensity" min="20" max="100" value="70"><button type="button" class="preview-chat" id="preview-chat">Comparar tamanho no chat <span>↗</span></button></form></dialog>
+<dialog id="system-hub" class="system-dialog" aria-labelledby="hub-title"><div class="dialog-heading"><div><p class="eyebrow">SEU CORTEX, EM DETALHES</p><h2 id="hub-title">Central do CORTEX</h2></div><button class="close-button" data-close-dialog="system-hub" aria-label="Fechar central">×</button></div><p class="hub-intro">Uma visão do sistema. Escolha o que você quer acompanhar.</p><div class="system-grid" id="system-grid">
+<!-- The frozen CSS defaults health dots to green; neutral until real reads arrive. -->
+<button class="system-option" id="option-internet" aria-label="Internet lease"><span class="option-heading"><i class="health-dot" style="background:var(--muted)"></i><span>Internet lease</span><span class="option-arrow" aria-hidden="true">↗</span></span><span class="option-summary"></span><span class="option-description"></span></button>
+<button class="system-option" id="option-network" aria-label="Net"><span class="option-heading"><i class="health-dot" style="background:var(--muted)"></i><span>Net</span><span class="option-arrow" aria-hidden="true">↗</span></span><span class="option-summary"></span><span class="option-description"></span></button>
+<button class="system-option" id="option-services" aria-label="Services"><span class="option-heading"><i class="health-dot" style="background:var(--muted)"></i><span>Services</span><span class="option-arrow" aria-hidden="true">↗</span></span><span class="option-summary"></span><span class="option-description"></span></button>
+<button class="system-option" id="option-studier" aria-label="Studier"><span class="option-heading"><i class="health-dot" style="background:var(--muted)"></i><span>Studier</span><span class="option-arrow" aria-hidden="true">↗</span></span><span class="option-summary"></span><span class="option-description"></span></button>
+<button class="system-option" id="option-audit" aria-label="Audit log"><span class="option-heading"><i class="health-dot" style="background:var(--muted)"></i><span>Audit log</span><span class="option-arrow" aria-hidden="true">↗</span></span><span class="option-summary"></span><span class="option-description"></span></button>
+<button class="system-option" id="option-costs" aria-label="Costs"><span class="option-heading"><i class="health-dot" style="background:var(--muted)"></i><span>Costs</span><span class="option-arrow" aria-hidden="true">↗</span></span><span class="option-summary"></span><span class="option-description"></span></button>
+<button class="system-option" id="option-voice" aria-label="Voz"><span class="option-heading"><i class="health-dot" style="background:var(--muted)"></i><span>Voz</span><span class="option-arrow" aria-hidden="true">↗</span></span><span class="option-summary"></span><span class="option-description"></span></button>
+<button class="system-option" id="option-memory" aria-label="Memória"><span class="option-heading"><i class="health-dot" style="background:var(--muted)"></i><span>Memória</span><span class="option-arrow" aria-hidden="true">↗</span></span><span class="option-summary"></span><span class="option-description"></span></button>
+<button class="system-option" id="option-contacts" aria-label="Contatos"><span class="option-heading"><i class="health-dot" style="background:var(--muted)"></i><span>Contatos</span><span class="option-arrow" aria-hidden="true">↗</span></span><span class="option-summary">Agenda local</span><span class="option-description">Nomes, emails e telefones salvos no Cortex</span></button>
+</div><button class="appearance-entry" id="open-appearance"><svg><use href="#i-sliders"/></svg><span><strong>Aparência e núcleo</strong><small>Movimento, intensidade e estados de demonstração</small></span><span aria-hidden="true">→</span></button><p class="hub-footer">A conversa permanece exatamente onde você deixou.</p></dialog>
+<dialog id="metric-detail" class="system-dialog detail-dialog" aria-labelledby="metric-title"><button type="button" class="return-hub" id="metric-return">← Retomar central</button><div class="dialog-heading"><div><p class="eyebrow">CENTRAL DO CORTEX</p><h2 id="metric-title"></h2></div><button class="close-button" data-close-dialog="metric-detail" aria-label="Fechar painel">×</button></div><div id="metric-content"></div></dialog>
+<div class="toast" id="toast" role="status"></div>
+<script src="/ui/static/novo/avatar.js"></script>
+<script src="/ui/static/novo/core.js"></script>
+<script src="/ui/static/novo/conversa.js"></script>
+<script src="/ui/static/novo/quarto.js"></script>
+<script src="/ui/static/novo/projetos.js"></script>
+<script src="/ui/static/novo/central.js"></script>
+<script src="/ui/static/novo/pendente.js"></script>
+<script src="/ui/static/novo/microfone.js"></script>
+<script src="/ui/static/novo/anexos.js"></script>
+<script src="/ui/static/novo/contatos.js"></script>
+<script src="/ui/static/novo/shell.js"></script></body></html>

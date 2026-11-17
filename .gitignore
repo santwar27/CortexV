@@ -1,0 +1,77 @@
+# --- Secrets & env ---
+.env
+.env.local
+*.key
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Virtualenv ---
+venv*/
+.venv/
+env/
+
+# --- macOS junk ---
+.DS_Store
+
+# --- CORTEX local data (don't commit user vault, memory, models) ---
+data/memory_db/
+data/documents/*
+data/gate_state.json
+data/pending_action.json
+data/pending_action.json.lock
+# one line per nudge delivered — rewritten every time the nudge driver
+# runs, so a tracked copy dirties the tree on ordinary use (s83)
+data/nudged.json
+# the digest's last-seen marker — same class, rewritten on every digest
+data/last_seen.json
+data/study_queue.jsonl
+data/study_queue.jsonl.lock
+data/study_queue.jsonl.run.lock
+data/action_ledger.jsonl
+data/knowledge/
+data/last_announce.txt
+data/reviews/
+data/credentials/
+data/palace.db
+data/palace.db-wal
+data/palace.db-shm
+data/palace.db*
+data/*.bak
+data/*.bak-*
+data/backups/
+data/screenshots/
+
+# --- Large model weights (GGUF can be GBs) ---
+*.gguf
+*.bin
+*.safetensors
+
+# --- IDE / tooling ---
+.vscode/
+.idea/
+*.swp
+.claude/
+
+# --- Logs ---
+*.log
+logs/
+
+# --- Voice models (downloaded on demand, large) ---
+data/voice/
+
+# --- Build artifacts (e.g. dist/Cortex Voice.app) ---
+dist/
+
+# --- Obsidian (vault not stored here; keeps stray vault files out) ---
+.obsidian/
+*.canvas
+*.base
+data/deep_queue.jsonl
+data/briefings/

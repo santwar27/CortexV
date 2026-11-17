@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>CORTEX · XR</title>
+  <!--
+    WebXR Fase A — painel flutuante no passthrough do Quest 3.
+
+    SOBERANIA: A-Frame é VENDORADO local (src/ui/static/vendor/), ZERO
+    CDN — a cena carrega 100% da própria máquina, igual ao resto do /ui.
+    Não captura áudio (r2): voz segue pela pipeline nativa; esta cena é
+    só LEITURA do estado (/ui/conversation, /ui/data) com a mesma
+    cookie-auth do dashboard.
+
+    immersive-ar EXIGE secure context → servido por HTTPS via
+    `tailscale serve` (Bloco 0). Fallback se o passthrough não colar:
+    "magic window" (a mesma cena em 3D sem entrar no modo imersivo)
+    funciona em qualquer browser, até em HTTP.
+  -->
+  <script src="/ui/static/vendor/aframe-1.7.0.min.js"></script>
+  <script>
+    // Registrado ANTES da <a-scene> ser parseada — A-Frame só aplica um
+    // componente que já existe no registro quando o elemento inicializa.
+    // Faz polling de LEITURA do estado e atualiza o painel. Mesma origem
+    // → o cookie cortex_ui viaja sozinho (credentials).
+    // ============================ HUD do CORTEX ============================
+    // Estética holográfica: o "tech" vem de GEOMETRIA (anéis, molduras,
+    // scanline, grade), porque a fonte MSDF vendorada só tem ASCII básico
+    // (sem glifos de ícone). Tudo MeshBasicMaterial (flat) — em AR o
+    // passthrough domina e luz virtual não ilumina o real.
+
+    // reactor-core — emblema "vivo" do CORTEX: arcos concêntricos girando em
+    // velocidades/sentidos diferentes + um núcleo pulsante. Acelera e brilha
+    // quando o CORTEX está "pensando" (evento `cortex-busy` na cena).
+    AFRAME.registerComponent('reactor-core', {
+      schema: { size: { default: 0.08 }, color: { type: 'color', default: '#22d3ee' } },
+      init: function () {
+        var s = this.data.size, col = new THREE.Color(this.data.color);
+        var grp = new THREE.Group(), self = this;
+        this.arcs = [];
+        var PI = Math.PI;
+        // [raioInterno, raioExterno, segmentos, início, varredura, velocidade, opacidade]
+        var defs = [
+          [s * 0.92, s, 64, 0, PI * 2, 0.0, 0.30],      // borda fraca (estática)
+          [s * 0.70, s * 0.82, 48, 0, PI * 1.5, 0.9, 0.95], // arco grande
+          [s * 0.46, s * 0.56, 40, 0, PI * 1.15, -1.6, 0.85], // arco médio (contra)
+          [s * 0.28, s * 0.34, 6, 0, PI * 2, 1.2, 0.7]   // hexágono girando
+        ];
+        defs.forEach(function (d) {
+          var g = new THREE.RingGeometry(d[0], d[1], d[2], 1, d[3], d[4]);
+          var m = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: d[6], side: THREE.DoubleSide });
+          var mesh = new THREE.Mesh(g, m); mesh.userData.spd = d[5];
+          grp.add(mesh); self.arcs.push(mesh);
+        });
+        this.coreMat = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.85, side: THREE.DoubleSide });
+        this.core = new THREE.Mesh(new THREE.CircleGeometry(s * 0.2, 24), this.coreMat);
+        grp.add(this.core);
+        this.el.setObject3D('mesh', grp);
+        this.t = 0; this.busy = false;
+        this.el.sceneEl.addEventListener('cortex-busy', function (e) {
+          self.busy = !!(e.detail && e.detail.on);
+        });
+      },
+      tick: function (time, dt) {
+        var d = (dt || 16) / 1000; this.t += d;
+        var boost = this.busy ? 3.2 : 1;
+        for (var i = 0; i < this.arcs.length; i++) {
+          this.arcs[i].rotation.z += this.arcs[i].userData.spd * d * boost;
+        }
+        var p = 0.65 + 0.35 * Math.sin(this.t * (this.busy ? 7 : 2.2));
+        this.coreMat.opacity = p;
+        this.core.scale.setScalar(0.8 + 0.25 * p);
+      }
+    });
+
+    // corner-brackets — 4 cantos em "L" que pulsam (moldura de HUD).
+    AFRAME.registerComponent('corner-brackets', {
+      schema: { w: { default: 1.4 }, h: { default: 1.0 }, len: { default: 0.13 },
+                t: { default: 0.012 }, color: { type: 'color', default: '#22d3ee' } },
+      init: function () {
+        var d = this.data, hw = d.w / 2, hh = d.h / 2, grp = new THREE.Group();
+        this.mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(d.color),
+          transparent: true, opacity: 0.9, side: THREE.DoubleSide });
+        var self = this;
+        var bar = function (w, h, x, y) {
+          var m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), self.mat);
+          m.position.set(x, y, 0); grp.add(m);
+        };
+        [[-1, 1], [1, 1], [-1, -1], [1, -1]].forEach(function (c) {
+          bar(d.len, d.t, c[0] * (hw - d.len / 2), c[1] * hh);   // horizontal
+          bar(d.t, d.len, c[0] * hw, c[1] * (hh - d.len / 2));   // vertical
+        });
+        this.el.setObject3D('mesh', grp);
+      },
+      tick: function (time) { this.mat.opacity = 0.55 + 0.45 * Math.abs(Math.sin(time / 950)); }
+    });
+
+    // hud-grid — grade holográfica fraca (textura de canvas) no fundo do vidro.
+    AFRAME.registerComponent('hud-grid', {
+      schema: { w: { default: 1.4 }, h: { default: 1.0 }, cell: { default: 0.065 },
+                color: { default: '#2a6b8a' } },
+      init: function () {
+        var d = this.data;
+        var cv = document.createElement('canvas');
+        cv.width = 512; cv.height = Math.round(512 * d.h / d.w);
+        var ctx = cv.getContext('2d');
+        ctx.strokeStyle = d.color; ctx.lineWidth = 1; ctx.globalAlpha = 0.6;
+        var step = cv.width * (d.cell / d.w), x, y;
+        for (x = 0; x <= cv.width; x += step) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, cv.height); ctx.stroke(); }
+        for (y = 0; y <= cv.height; y += step) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(cv.width, y); ctx.stroke(); }
+        var tex = new THREE.CanvasTexture(cv);
+        var mesh = this.el.getObject3D('mesh');
+        var apply = function (mm) {
+          if (!mm) return;
+          mm.material = new THREE.MeshBasicMaterial({ map: tex, transparent: true,
+            opacity: 0.14, side: THREE.DoubleSide });
+        };
+        if (mesh) apply(mesh);
+        else this.el.addEventListener('loaded', function () { apply(this.getObject3D('mesh')); });
+      }
+    });
+
+    // cortex-panel — orquestra o conteúdo: relógio ao vivo (tick 1s), conversa
+    // + telemetria (poll), e mantém o reactor "vivo".
+    AFRAME.registerComponent('cortex-panel', {
+      schema: { interval: { type: 'number', default: 3000 }, rows: { type: 'number', default: 9 } },
+      init: function () {
+        this.status = document.getElementById('panel-status');
+        this.clock = document.getElementById('panel-clock');
+        this.tele = document.getElementById('panel-tele');
+        this.dot = document.getElementById('panel-dot');
+        // Linhas de conversa: entidades de texto pré-criadas e empilhadas.
+        // Uma entidade por linha dá HIERARQUIA DE COR (você em ciano,
+        // resposta em tom suave) sem precisar medir altura de wrap.
+        var conv = document.getElementById('panel-conv');
+        this.rows = [];
+        for (var i = 0; i < this.data.rows; i++) {
+          var r = document.createElement('a-entity');
+          r.setAttribute('position', '0 ' + (-i * 0.052).toFixed(3) + ' 0');
+          r.setAttribute('text', 'value: ; align: left; anchor: left; width: 1.34; ' +
+            'wrapCount: 50; baseline: center; color: #cfe6f0; ' +
+            'font: /ui/static/vendor/Roboto-msdf.json');
+          conv.appendChild(r);
+          this.rows.push(r);
+        }
+        this.refresh = this.refresh.bind(this);
+        this.refresh();
+        this._timer = setInterval(this.refresh, this.data.interval);
+        this._lastClock = 0;
+      },
+      remove: function () { clearInterval(this._timer); },
+      tick: function (time) {
+        if (time - this._lastClock > 1000) {
+          this._lastClock = time;
+          if (this.clock) this.clock.setAttribute('text', 'value', new Date().toLocaleTimeString('pt-BR'));
+        }
+      },
+      fmtTele: function (d) {
+        var mem = (d.memory && d.memory.counts) || {};
+        var svc = d.services || [];
+        var run = svc.filter(function (s) { return s.running; }).length;
+        var net = (d.net && d.net.status === 'online')
+          ? ('NET ' + (d.net.mbps ? Math.round(d.net.mbps) + 'M' : 'on')) : 'NET local';
+        var parts = ['MEM ' + (mem.documentos || 0) + 'd ' + (mem.triplas || 0) + 'f',
+                     'SVC ' + run + '/' + svc.length, net];
+        var cost = d.cost && d.cost.mtd ? d.cost.mtd.total_cost_usd : null;
+        if (cost != null) parts.push('$' + Number(cost).toFixed(2));
+        return parts.join('     ');
+      },
+      // Quebra um texto em linhas de no máx. n caracteres (por palavra).
+      wrap: function (s, n) {
+        var w = s.split(/\s+/), out = [], cur = '';
+        for (var i = 0; i < w.length; i++) {
+          if ((cur + ' ' + w[i]).trim().length > n) { if (cur) out.push(cur); cur = w[i]; }
+          else cur = cur ? cur + ' ' + w[i] : w[i];
+        }
+        if (cur) out.push(cur);
+        return out;
+      },
+      // Constrói linhas coloridas dos últimos turnos: você (ciano) + resposta
+      // (suave, indentada, no máx. 2 linhas), com uma linha em branco entre.
+      buildLines: function (j) {
+        var self = this, turns = (j.turns || []).slice(-3), lines = [];
+        if (!turns.length) {
+          return [{ t: '> ola', c: '#7dd3fc' },
+                  { t: '  Fale com o Cortex ou use o teclado abaixo.', c: '#a9c6d6' }];
+        }
+        turns.forEach(function (t) {
+          var u = (t.user || '').trim(), rep = (t.reply || '').trim();
+          if (u) lines.push({ t: '> ' + u, c: '#7dd3fc' });
+          var wl = self.wrap(rep, 46), shown = wl.slice(0, 2);
+          shown.forEach(function (l, k) {
+            if (k === 1 && wl.length > 2) l += ' ...';
+            lines.push({ t: '  ' + l, c: '#a9c6d6' });
+          });
+          lines.push({ t: '', c: '#ffffff' });
+        });
+        return lines;
+      },
+      renderConv: function (j) {
+        var lines = this.buildLines(j).slice(-this.data.rows);
+        for (var i = 0; i < this.rows.length; i++) {
+          var L = lines[i];
+          this.rows[i].setAttribute('text', 'value', L ? L.t : '');
+          if (L) this.rows[i].setAttribute('text', 'color', L.c);
+        }
+      },
+      refresh: function () {
+        var self = this;
+        var conv = fetch('/ui/conversation?limit=6', { credentials: 'same-origin' })
+          .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+        var data = fetch('/ui/data', { credentials: 'same-origin' })
+          .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+        Promise.all([conv, data]).then(function (res) {
+          self.renderConv(res[0]);
+          if (res[1] && self.tele) self.tele.setAttribute('text', 'value', self.fmtTele(res[1]));
+          if (self.dot) self.dot.setAttribute('material', 'color', '#34d399');
+          self.status.setAttribute('text', 'value', 'sync ' + new Date().toLocaleTimeString('pt-BR'));
+        }).catch(function (e) {
+          if (self.dot) self.dot.setAttribute('material', 'color', '#f59e0b');
+          self.status.setAttribute('text', 'value', 'offline: ' + e.message);
+        });
+      }
+    });
+
+    // Envia texto pro Cortex pela MESMA rota do dashboard (/ui/chat/stream,
+    // SSE). statusCb recebe os rótulos de progresso; doneCb roda no final.
+    // A resposta entra no conversation_buffer (source="ui") e aparece no
+    // painel no próximo poll — doneCb força um refresh imediato.
+    window.cortexSend = function (text, statusCb, doneCb) {
+      statusCb && statusCb('enviando...');
+      var sc = document.querySelector('a-scene');
+      if (sc) sc.emit('cortex-busy', { on: true });   // reactor acelera
+      return fetch('/ui/chat/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ text: text })
+      }).then(function (res) {
+        if (!res.ok || !res.body) throw new Error('HTTP ' + res.status);
+        var reader = res.body.getReader();
+        var dec = new TextDecoder();
+        var buf = '';
+        function pump() {
+          return reader.read().then(function (r) {
+            if (r.done) return;
+            buf += dec.decode(r.value, { stream: true });
+            var i;
+            while ((i = buf.indexOf('\n\n')) >= 0) {
+              var frame = buf.slice(0, i); buf = buf.slice(i + 2);
+              var line = frame.split('\n').filter(function (l) {
+                return l.indexOf('data: ') === 0;
+              })[0];
+              if (!line) continue;
+              var obj;
+              try { obj = JSON.parse(line.slice(6)); } catch (e) { continue; }
+              if (obj.type === 'status') statusCb && statusCb(obj.label || '…');
+              else if (obj.type === 'error') statusCb && statusCb('erro: ' + obj.detail);
+              else if (obj.type === 'final') { statusCb && statusCb(''); }
+            }
+            return pump();
+          });
+        }
+        return pump();
+      }).then(function () {
+        if (sc) sc.emit('cortex-busy', { on: false });
+        doneCb && doneCb();
+      }).catch(function (e) {
+        if (sc) sc.emit('cortex-busy', { on: false });
+        statusCb && statusCb('falhou: ' + (e && e.message ? e.message : e));
+      });
+    };
+
+    // Teclado QWERTY 3D na cena (não há dom-overlay no browser do Quest →
+    // o teclado do sistema não aparece em immersive-ar; este é renderizado
+    // na própria cena e operado pela mira do controle). O componente
+    // constrói as teclas como filhos do seu elemento; cada tecla é um
+    // a-plane class="kb-key" (alvo do raycaster do laser-controls).
+    AFRAME.registerComponent('cortex-keyboard', {
+      schema: {
+        keyW: { default: 0.155 }, keyH: { default: 0.155 },
+        gap: { default: 0.022 }, r: { default: 0.032 }
+      },
+      init: function () {
+        this.value = '';
+        this.display = document.getElementById('kb-input-text');
+        this.status = document.getElementById('kb-status-text');
+        this.build();
+      },
+      // Geometria de retângulo arredondado (chiclet tipo MacBook). a-plane
+      // não tem cantos redondos → construímos a forma com THREE.Shape.
+      rrShape: function (w, h, r) {
+        r = Math.min(r, w / 2, h / 2);
+        var s = new THREE.Shape(), x = -w / 2, y = -h / 2;
+        s.moveTo(x + r, y);
+        s.lineTo(x + w - r, y); s.quadraticCurveTo(x + w, y, x + w, y + r);
+        s.lineTo(x + w, y + h - r); s.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        s.lineTo(x + r, y + h); s.quadraticCurveTo(x, y + h, x, y + h - r);
+        s.lineTo(x, y + r); s.quadraticCurveTo(x, y, x + r, y);
+        return s;
+      },
+      mesh: function (w, h, r, color) {
+        var g = new THREE.ShapeGeometry(this.rrShape(w, h, r));
+        return new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+          color: color, side: THREE.DoubleSide
+        }));
+      },
+      build: function () {
+        var rows = ['1234567890', 'qwertyuiop', 'asdfghjkl', 'zxcvbnm'];
+        var kw = this.data.keyW, kh = this.data.keyH, gap = this.data.gap;
+        var step = kw + gap, self = this;
+        var ay = -4 * (kh + gap);  // y da linha de ação
+        // Chassi escuro tipo MacBook atrás das teclas (puramente visual: não
+        // é .kb-key nem .grab-handle, então o raio ignora).
+        var widest = 10 * step - gap, topY = kh / 2, botY = ay - kh / 2, pad = kw * 0.55;
+        var deck = document.createElement('a-entity');
+        deck.setObject3D('mesh', this.mesh(widest + pad, (topY - botY) + pad, 0.06, '#3a3a3c'));
+        deck.setAttribute('position', '0 ' + ((topY + botY) / 2) + ' -0.012');
+        this.el.appendChild(deck);
+        // Teclas de caractere — keycap mostra MAIÚSCULA, digita minúscula.
+        rows.forEach(function (row, ri) {
+          var chars = row.split('');
+          var rowW = chars.length * step - gap;
+          var y = -ri * (kh + gap);
+          chars.forEach(function (ch, c) {
+            self.key(ch.toUpperCase(), ch, (-rowW / 2 + kw / 2 + c * step), y, kw, kh, '#1c1c1e');
+          });
+        });
+        // Linha de ação. "limpar" zera tudo de uma vez (sem apagar letra a
+        // letra). Labels ASCII — a fonte MSDF vendorada não tem ç/acentos.
+        var actions = [
+          { label: 'apagar', code: '__back', w: kw * 1.8, color: '#2a2226' },
+          { label: 'limpar', code: '__clear', w: kw * 1.8, color: '#2a2226' },
+          { label: 'espaco', code: '__space', w: kw * 3.6, color: '#202024' },
+          { label: 'enviar', code: '__send', w: kw * 2.2, color: '#13351e' },
+          { label: 'sair', code: '__exit', w: kw * 1.6, color: '#3a1a1a' }
+        ];
+        var totalW = actions.reduce(function (s, a) { return s + a.w; }, 0) +
+          (actions.length - 1) * gap;
+        var x = -totalW / 2;
+        actions.forEach(function (a) {
+          self.key(a.label, a.code, x + a.w / 2, ay, a.w, kh, a.color);
+          x += a.w + gap;
+        });
+        this.render();
+      },
+      key: function (label, code, x, y, w, h, color) {
+        var self = this, base = color;
+        var el = document.createElement('a-entity');
+        el.setAttribute('class', 'kb-key');
+        el.setAttribute('position', x + ' ' + y + ' 0');
+        el.setAttribute('width', w);   // lidos pelo poke-typist (hit-test no plano)
+        el.setAttribute('height', h);
+        var mesh = this.mesh(w, h, this.data.r, color);
+        el.setObject3D('mesh', mesh);
+        var t = document.createElement('a-entity');
+        t.setAttribute('position', '0 0 0.007');
+        t.setAttribute('text', 'value: ' + label + '; align: center; ' +
+          'width: ' + (w * 0.82) + '; wrapCount: ' + Math.max(label.length, 2) +
+          '; color: #f5f5f7; font: /ui/static/vendor/Roboto-msdf.json');
+        el.appendChild(t);
+        el.addEventListener('mouseenter', function () { mesh.material.color.set('#48484a'); });
+        el.addEventListener('mouseleave', function () { mesh.material.color.set(base); });
+        el.addEventListener('click', function () {
+          mesh.material.color.set('#7dd3fc');
+          setTimeout(function () { mesh.material.color.set(base); }, 130);
+          self.press(code);
+        });
+        this.el.appendChild(el);
+      },
+      press: function (code) {
+        if (code === '__back') this.value = this.value.slice(0, -1);
+        else if (code === '__clear') this.value = '';
+        else if (code === '__space') this.value += ' ';
+        else if (code === '__send') return this.send();
+        else if (code === '__exit') {
+          try { this.el.sceneEl.exitVR(); } catch (e) {}
+          return;
+        } else this.value += code;
+        this.render();
+      },
+      render: function () {
+        if (this.display) {
+          this.display.setAttribute('text', 'value', this.value || '│');
+        }
+      },
+      send: function () {
+        var text = (this.value || '').trim();
+        if (!text) return;
+        var self = this;
+        window.cortexSend(text,
+          function (label) { if (self.status) self.status.setAttribute('text', 'value', label); },
+          function () {
+            self.value = ''; self.render();
+            var p = self.el.sceneEl.components['cortex-panel'];
+            if (p) p.refresh();
+          });
+      }
+    });
+
+    // grab-manager — torna painel e teclado "agarráveis" pra mover,
+    // aproximar/afastar e redimensionar. Vai em CADA controle e CADA mão.
+    //  • Controle: GRIP agarra o que o raio aponta (.grabbable); o objeto
+    //    segue a pose do controle (move + profundidade). THUMBSTICK Y
+    //    redimensiona enquanto agarrado.
+    //  • Mão: PINÇA agarra o .grabbable mais próximo do ponto da pinça
+    //    (alcance ~0.35m); segue a posição da pinça.
+    // O objeto é filho direto da cena → object3D.position é a pose mundial,
+    // então seguir = recompor (poseDoControle × offsetCapturado).
+    // Lista global de todos os grab-managers (controles + mãos) pra
+    // detectar quando DUAS mãos seguram o mesmo objeto → pinça de duas
+    // mãos = redimensionar (junta/afasta), igual ao menu da Meta.
+    window.__grabbers = window.__grabbers || [];
+    AFRAME.registerComponent('grab-manager', {
+      init: function () {
+        this.grabbed = null;
+        this.offset = new THREE.Matrix4();
+        this.tmp = new THREE.Matrix4();
+        this.refMat = new THREE.Matrix4();
+        this.p = new THREE.Vector3(); this.pa = new THREE.Vector3();
+        this.pb = new THREE.Vector3(); this.mid = new THREE.Vector3();
+        this.q = new THREE.Quaternion(); this.s = new THREE.Vector3();
+        this.thumbY = 0; this.pinchPos = null;
+        this._solo = false; this._two = null;
+        var self = this;
+        this.el.addEventListener('gripdown', function () { self.start(); });
+        this.el.addEventListener('gripup', function () { self.stop(); });
+        this.el.addEventListener('thumbstickmoved', function (e) { self.thumbY = e.detail.y; });
+        this.el.addEventListener('pinchstarted', function (e) {
+          self.pinchPos = e.detail.position; self.start(e.detail.position);
+        });
+        this.el.addEventListener('pinchmoved', function (e) { self.pinchPos = e.detail.position; });
+        this.el.addEventListener('pinchended', function () { self.stop(); self.pinchPos = null; });
+        window.__grabbers.push(this);
+      },
+      point: function (out) {
+        if (this.pinchPos) return out.copy(this.pinchPos);
+        return this.el.object3D.getWorldPosition(out);
+      },
+      ref: function () {
+        if (this.pinchPos) return this.refMat.makeTranslation(
+          this.pinchPos.x, this.pinchPos.y, this.pinchPos.z);
+        return this.el.object3D.matrixWorld;
+      },
+      start: function (pinchPos) {
+        // Agarra pela ALÇA (.grab-handle) e move a RAIZ (.grabbable) dela.
+        // Assim teclas/corpo do teclado não agarram (só digitam): só as
+        // quinas movem. O painel agarra pelo corpo (a malha dele é .grab-handle).
+        var handle = null, rc = this.el.components.raycaster;
+        if (rc && rc.intersectedEls) {
+          for (var i = 0; i < rc.intersectedEls.length; i++) {
+            var h = rc.intersectedEls[i].closest('.grab-handle');
+            if (h) { handle = h; break; }
+          }
+        }
+        if (!handle && pinchPos) {
+          var list = document.querySelectorAll('.grab-handle'), best = 0.4;
+          for (var j = 0; j < list.length; j++) {
+            list[j].object3D.getWorldPosition(this.p);
+            var d = this.p.distanceTo(pinchPos);
+            if (d < best) { best = d; handle = list[j]; }
+          }
+        }
+        if (!handle) return;
+        var target = handle.closest('.grabbable');
+        if (!target) return;
+        this.grabbed = target; this._solo = false;
+      },
+      stop: function () { this.grabbed = null; this._solo = false; this._two = null; },
+      recapture: function () {  // offset = inv(minhaPose) × poseMundialDoObjeto
+        this.tmp.copy(this.ref()).invert();
+        this.offset.multiplyMatrices(this.tmp, this.grabbed.object3D.matrixWorld);
+      },
+      tick: function () {
+        if (!this.grabbed) return;
+        var grabbed = this.grabbed;
+        var mates = window.__grabbers.filter(function (g) { return g.grabbed === grabbed; });
+        if (mates[0] !== this) { this._solo = false; return; }  // só o primário age
+        var o = grabbed.object3D;
+        if (mates.length >= 2) {
+          // Duas mãos: posição = ponto médio; escala = razão da distância.
+          mates[0].point(this.pa); mates[1].point(this.pb);
+          var dist = this.pa.distanceTo(this.pb);
+          this.mid.copy(this.pa).add(this.pb).multiplyScalar(0.5);
+          if (!this._two) {
+            this._two = { d0: dist || 0.001, sc0: o.scale.x,
+                          mid0: this.mid.clone(), pos0: o.position.clone() };
+          }
+          var ns = this._two.sc0 * (dist / this._two.d0);
+          o.scale.setScalar(Math.min(5, Math.max(0.05, ns)));
+          o.position.copy(this._two.pos0).add(this.mid.sub(this._two.mid0));
+          this._solo = false;
+        } else {
+          this._two = null;
+          // Ao (re)assumir sozinho, recaptura o offset pra não dar salto.
+          if (!this._solo) { this.recapture(); this._solo = true; }
+          this.tmp.multiplyMatrices(this.ref(), this.offset);
+          this.tmp.decompose(this.p, this.q, this.s);
+          o.position.copy(this.p);
+          // Objeto que gere a própria rotação (billboard segue a cabeça;
+          // aim-at-user encara o user só enquanto agarrado) — não copia a
+          // pose do controle, senão giraria junto com a mão.
+          if (!grabbed.components.billboard && !grabbed.components['aim-at-user']) {
+            o.quaternion.copy(this.q);
+          }
+          if (Math.abs(this.thumbY) > 0.2) {       // thumbstick (controle) redimensiona
+            o.scale.multiplyScalar(1 - this.thumbY * 0.025);
+            o.scale.clampScalar(0.08, 4);
+          }
+        }
+      }
+    });
+
+    // poke-typist — digitar com a MÃO: a ponta do indicador
+    // (indexTipPosition do hand-tracking) encosta numa tecla → dispara o
+    // clique dela. Uma tecla por toque (re-arma quando o dedo sai). Pausa
+    // enquanto a mão está agarrando algo (pra não digitar sem querer).
+    AFRAME.registerComponent('poke-typist', {
+      init: function () {
+        this.touched = null;
+        this.tip = new THREE.Vector3();
+        this.kp = new THREE.Vector3();
+        this.ws = new THREE.Vector3();
+        this.kb = document.getElementById('keyboard-root');
+      },
+      tick: function () {
+        var hc = this.el.components['hand-tracking-controls'];
+        var gm = this.el.components['grab-manager'];
+        if (!hc || !hc.indexTipPosition || (gm && gm.grabbed) || !this.kb) {
+          this.wasIn = false; return;
+        }
+        // Ponta do indicador no espaço LOCAL do teclado (desfaz escala/
+        // rotação/posição) → x,y no plano das teclas, z = profundidade.
+        this.tip.copy(hc.indexTipPosition);
+        this.kb.object3D.worldToLocal(this.tip);
+        var fx = this.tip.x, fy = this.tip.y, fz = this.tip.z;
+        var inPlane = Math.abs(fz) < 0.05;     // dentro da fina banda do plano
+        var over = null;
+        var keys = document.querySelectorAll('.kb-key');
+        for (var i = 0; i < keys.length; i++) {
+          var kp = keys[i].object3D.position;  // local ao teclado (#keyboard em 0)
+          var w = keys[i].getAttribute('width') || 0.14;
+          var h = keys[i].getAttribute('height') || 0.14;
+          if (Math.abs(fx - kp.x) < w / 2 && Math.abs(fy - kp.y) < h / 2) { over = keys[i]; break; }
+        }
+        // Digita só na TRANSIÇÃO de fora→dentro do plano sobre uma tecla
+        // (um toque = uma tecla; deslizar não repete; precisa sair e voltar).
+        if (inPlane && !this.wasIn && over) { over.emit('click'); }
+        this.wasIn = inPlane;
+      }
+    });
+
+    // billboard — gira o objeto pra SEMPRE encarar o usuário (só yaw, fica
+    // em pé). Assim o painel te acompanha quando você vira, sem precisar
+    // reposicionar. O grab cuida da posição; o billboard cuida da rotação.
+    AFRAME.registerComponent('billboard', {
+      init: function () { this.v = new THREE.Vector3(); },
+      tick: function () {
+        var cam = this.el.sceneEl.camera;
+        if (!cam) return;
+        cam.getWorldPosition(this.v);
+        var o = this.el.object3D;
+        o.rotation.set(0, Math.atan2(this.v.x - o.position.x, this.v.z - o.position.z), 0);
+      }
+    });
+
+    // grab-frame — moldura estilo Meta: 4 barras ciano em volta do objeto,
+    // ESCONDIDAS por padrão; ACENDEM quando um laser passa por cima do
+    // grabbable (hover) ou enquanto ele está agarrado. É a affordance que
+    // diz "dá pra pegar aqui". A moldura é filha do grabbable → segue
+    // posição/escala/rotação dele de graça. w/h = tamanho local; cx/cy =
+    // centro (o teclado tem conteúdo deslocado pra baixo).
+    AFRAME.registerComponent('grab-frame', {
+      schema: { w: { default: 1.4 }, h: { default: 1.0 },
+                cx: { default: 0 }, cy: { default: 0 }, t: { default: 0.012 },
+                handles: { default: false } },
+      init: function () {
+        var d = this.data, hw = d.w / 2, hh = d.h / 2, t = d.t, el = this.el;
+        // Barras de borda — ESCONDIDAS, acendem no hover (toggle no tick).
+        var root = document.createElement('a-entity');
+        root.setAttribute('position', d.cx + ' ' + d.cy + ' 0.02');
+        var bar = function (w, h, x, y) {
+          var p = document.createElement('a-plane');
+          p.setAttribute('width', w); p.setAttribute('height', h);
+          p.setAttribute('position', x + ' ' + y + ' 0');
+          p.setAttribute('material', 'shader: flat; color: #7dd3fc; opacity: 0.9; side: double');
+          root.appendChild(p);
+        };
+        bar(d.w + t, t, 0, hh);    // topo
+        bar(d.w + t, t, 0, -hh);   // base
+        bar(t, d.h + t, -hw, 0);   // esquerda
+        bar(t, d.h + t, hw, 0);    // direita
+        root.object3D.visible = false;
+        el.appendChild(root);
+        this.frame = root;
+        // Alças de quina (opcionais): SEMPRE visíveis e SEMPRE agarráveis
+        // (.grab-handle). No teclado, são o ÚNICO jeito de mover — assim
+        // digitar nas teclas nunca arrasta o teclado sem querer.
+        if (d.handles) {
+          var hs = 0.16;
+          [[-hw, hh], [hw, hh], [-hw, -hh], [hw, -hh]].forEach(function (c) {
+            var q = document.createElement('a-plane');
+            q.setAttribute('class', 'grab-handle');
+            q.setAttribute('width', hs); q.setAttribute('height', hs);
+            q.setAttribute('position', (d.cx + c[0]) + ' ' + (d.cy + c[1]) + ' 0.025');
+            q.setAttribute('material', 'shader: flat; color: #7dd3fc; opacity: 0.6; side: double');
+            q.addEventListener('mouseenter', function () { q.setAttribute('material', 'opacity', 1); });
+            q.addEventListener('mouseleave', function () { q.setAttribute('material', 'opacity', 0.6); });
+            el.appendChild(q);
+          });
+        }
+      },
+      tick: function () {
+        var self = this, on = false;
+        (window.__grabbers || []).forEach(function (g) {
+          if (g.grabbed === self.el) on = true;
+          var rc = g.el.components.raycaster;
+          if (rc && rc.intersectedEls) {
+            rc.intersectedEls.forEach(function (e) {
+              if (e.closest && e.closest('.grabbable') === self.el) on = true;
+            });
+          }
+        });
+        if (this.frame.object3D.visible !== on) this.frame.object3D.visible = on;
+      }
+    });
+
+    // aim-at-user — vira o objeto pra encarar o usuário (yaw), preservando
+    // uma inclinação fixa (pitch). mode 'grab' = reorienta SÓ enquanto
+    // agarrado: você posiciona, ele te encara, e ao soltar CONGELA — não
+    // persegue a cabeça enquanto você digita (o que seria irritante). É o
+    // contraste com billboard, que segue sempre (bom pro painel de leitura).
+    AFRAME.registerComponent('aim-at-user', {
+      schema: { mode: { default: 'grab' }, pitch: { default: 0 } },
+      init: function () { this.v = new THREE.Vector3(); },
+      tick: function () {
+        var self = this;
+        if (this.data.mode === 'grab') {
+          var held = (window.__grabbers || []).some(function (g) { return g.grabbed === self.el; });
+          if (!held) return;
+        }
+        var cam = this.el.sceneEl.camera;
+        if (!cam) return;
+        cam.getWorldPosition(this.v);
+        var o = this.el.object3D;
+        var yaw = Math.atan2(this.v.x - o.position.x, this.v.z - o.position.z);
+        o.rotation.order = 'YXZ';
+        o.rotation.set(THREE.MathUtils.degToRad(this.data.pitch), yaw, 0);
+      }
+    });
+  </script>
+  <style>
+    /* Fundo TRANSPARENTE: em AR o passthrough mostra através do canvas;
+       um fundo opaco aqui cobriria a câmera (bug pego ao vivo no Quest).
+       No flat o próprio canvas da cena cobre o viewport. */
+    html, body { margin: 0; height: 100%; background: transparent; color: #e6e6e6;
+      font-family: -apple-system, system-ui, sans-serif; }
+    /* Banner mostrado fora do modo imersivo (magic window / desktop) e
+       quando o headset não suporta immersive-ar. */
+    #hud { position: fixed; top: 12px; left: 12px; right: 12px; z-index: 9;
+      font-size: 13px; line-height: 1.4; opacity: 0.9; pointer-events: none;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.9); }
+    #hud b { color: #7dd3fc; }
+    #enter-overlay { position: fixed; inset: 0; z-index: 8;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 16px; pointer-events: none; }
+    #enter-ar { pointer-events: auto; cursor: pointer;
+      font-size: 28px; font-weight: 600; color: #050505;
+      background: #7dd3fc; border: none; border-radius: 14px;
+      padding: 20px 40px; box-shadow: 0 6px 30px rgba(125,211,252,0.4); }
+    #enter-ar:active { transform: scale(0.97); }
+    #enter-err { color: #fca5a5; font-size: 14px; max-width: 80%;
+      text-align: center; }
+    /* Escondido só quando JÁ estamos numa sessão imersiva (toggle via JS
+       nos eventos enter-vr/exit-vr — NÃO via .a-fullscreen, que o A-Frame
+       põe no <html> desde o início numa cena não-embedded). */
+    #enter-overlay.hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <b>CORTEX · XR</b> — painel de leitura no passthrough.
+    Voz segue principal. <span id="xr-support"></span>
+  </div>
+
+  <!-- Botão grande e confiável pra entrar no passthrough (o botão nativo
+       do A-Frame é minúsculo). O modo imersivo tem frame loop próprio, então
+       roda mesmo se a aba flat estiver "hidden" (janela em background). -->
+  <div id="enter-overlay">
+    <button id="enter-ar">🥽 Entrar em AR</button>
+    <div id="enter-err"></div>
+  </div>
+
+  <a-scene
+    xr-mode-ui="enterARButton: true; enterVRButton: true"
+    webxr="optionalFeatures: local-floor, bounded-floor, hand-tracking"
+    renderer="colorManagement: true; alpha: true"
+    background="transparent: true"
+    loading-screen="enabled: false"
+    cortex-panel>
+
+    <!-- Painel HUD holográfico ~1.5m à frente. Grabbable pelo corpo (vidro =
+         .grab-handle); billboard segue a cabeça. Camadas em z crescente:
+         halo < vidro < grade < conteúdo < scanline < molduras. -->
+    <a-entity id="panel" class="grabbable" billboard position="0 1.4 -1.5"
+              grab-frame="w: 1.4; h: 1.0">
+      <!-- halo de borda (brilho suave) -->
+      <a-plane width="1.5" height="1.1" position="0 0 -0.02"
+               material="shader: flat; color: #0e7490; opacity: 0.16; transparent: true; side: double"></a-plane>
+      <!-- vidro (corpo agarrável) -->
+      <a-plane class="panel-bg grab-handle" width="1.4" height="1.0"
+               material="shader: flat; color: #050a12; opacity: 0.55; transparent: true"></a-plane>
+      <!-- grade holográfica fraca -->
+      <a-plane width="1.4" height="1.0" position="0 0 0.002" hud-grid="w: 1.4; h: 1.0"></a-plane>
+      <!-- molduras de canto (pulsam) -->
+      <a-entity position="0 0 0.014" corner-brackets="w: 1.4; h: 1.0"></a-entity>
+      <!-- scanline varrendo de cima a baixo -->
+      <a-plane class="scanline" width="1.34" height="0.006" position="0 0.46 0.012"
+               material="shader: flat; color: #7dd3fc; opacity: 0.4; transparent: true; side: double"
+               animation="property: position; from: 0 0.46 0.012; to: 0 -0.46 0.012; dur: 4200; loop: true; dir: alternate; easing: linear"></a-plane>
+
+      <!-- ===== HEADER ===== -->
+      <a-entity reactor-core="size: 0.072" position="-0.6 0.4 0.012"></a-entity>
+      <a-entity position="-0.5 0.435 0.012"
+                text="value: CORTEX; align: left; anchor: left; width: 0.46;
+                      letterSpacing: 6; color: #e8f6fb; baseline: center;
+                      font: /ui/static/vendor/Roboto-msdf.json"></a-entity>
+      <a-entity position="-0.5 0.355 0.012"
+                text="value: neural core // local; align: left; anchor: left; width: 0.95;
+                      letterSpacing: 1; color: #5f8499; baseline: center;
+                      font: /ui/static/vendor/Roboto-msdf.json"></a-entity>
+      <a-circle id="panel-dot" radius="0.011" position="0.4 0.425 0.013"
+                material="shader: flat; color: #34d399; side: double"
+                animation="property: material.opacity; from: 1; to: 0.25; dur: 1100; loop: true; dir: alternate; easing: easeInOutSine"></a-circle>
+      <a-entity position="0.425 0.425 0.012"
+                text="value: ONLINE; align: left; anchor: left; width: 0.42;
+                      letterSpacing: 2; color: #34d399; baseline: center;
+                      font: /ui/static/vendor/Roboto-msdf.json"></a-entity>
+      <a-entity id="panel-clock" position="0.66 0.355 0.012"
+                text="value: --:--:--; align: right; anchor: right; width: 0.5;
+                      letterSpacing: 2; color: #7dd3fc; baseline: center;
+                      font: /ui/static/vendor/Roboto-msdf.json"></a-entity>
+
+      <!-- divisor do header -->
+      <a-plane width="1.3" height="0.004" position="0 0.3 0.011"
+               material="shader: flat; color: #1a5b78; opacity: 0.85; side: double"></a-plane>
+
+      <!-- ===== TELEMETRIA (dados ao vivo) ===== -->
+      <a-entity id="panel-tele" position="-0.65 0.24 0.012"
+                text="value: ...; align: left; anchor: left; width: 1.5;
+                      letterSpacing: 1; color: #6fb8d6; baseline: center;
+                      font: /ui/static/vendor/Roboto-msdf.json"></a-entity>
+
+      <!-- ===== CONVERSA ===== -->
+      <a-entity position="-0.65 0.15 0.012"
+                text="value: CONVERSA; align: left; anchor: left; width: 0.6;
+                      letterSpacing: 3; color: #3f7e99; baseline: center;
+                      font: /ui/static/vendor/Roboto-msdf.json"></a-entity>
+      <!-- container das linhas de conversa; cortex-panel popula com cor -->
+      <a-entity id="panel-conv" position="-0.65 0.08 0.012"></a-entity>
+
+      <!-- divisor + status do rodapé -->
+      <a-plane width="1.3" height="0.004" position="0 -0.42 0.011"
+               material="shader: flat; color: #1a5b78; opacity: 0.85; side: double"></a-plane>
+      <a-entity id="panel-status" position="-0.65 -0.46 0.012"
+                text="value: ; align: left; anchor: left; width: 1.2;
+                      letterSpacing: 1; color: #5f8499; baseline: center;
+                      font: /ui/static/vendor/Roboto-msdf.json"></a-entity>
+    </a-entity>
+
+    <!-- Bloco B — teclado 3D, abaixo do painel, inclinado pra cima e ao
+         alcance. O componente cortex-keyboard popula #keyboard com as
+         teclas; #kb-input-text mostra o que está sendo digitado e
+         #kb-status-text o progresso do envio. -->
+    <a-entity id="keyboard-root" class="grabbable" position="0 0.9 -0.72"
+              rotation="-50 0 0" scale="0.5 0.5 0.5"
+              aim-at-user="mode: grab; pitch: -50"
+              grab-frame="w: 1.95; h: 1.3; cx: 0; cy: -0.22; handles: true">
+      <a-entity id="kb-status-text" position="0 0.36 0.01"
+                text="value: ; align: center; width: 1.75; color: #94a3b8;
+                      font: /ui/static/vendor/Roboto-msdf.json"></a-entity>
+      <a-plane position="0 0.18 -0.005" width="1.85" height="0.17"
+               material="shader: flat; color: #0a0a0f; opacity: 0.8"></a-plane>
+      <a-entity id="kb-input-text" position="0 0.18 0.01"
+                text="value: │; align: center; width: 1.75; color: #7dd3fc;
+                      font: /ui/static/vendor/Roboto-msdf.json"></a-entity>
+      <a-entity id="keyboard" cortex-keyboard></a-entity>
+    </a-entity>
+
+    <!-- Mira a laser dos dois controles: intersecta teclas (.kb-key, pra
+         digitar com o gatilho) e as alças (.grab-handle: corpo do painel e
+         quinas do teclado, pra agarrar com o grip). grab-manager faz o
+         agarrar/mover/redimensionar; o grab-frame acende a moldura no hover. -->
+    <a-entity laser-controls="hand: right" grab-manager
+              raycaster="objects: .kb-key, .grab-handle; far: 5; lineColor: #7dd3fc"></a-entity>
+    <a-entity laser-controls="hand: left" grab-manager
+              raycaster="objects: .kb-key, .grab-handle; far: 5; lineColor: #7dd3fc"></a-entity>
+
+    <!-- Mãos (hand-tracking): pinça pra agarrar/mover um painel ao alcance.
+         Não digitam (sem raio) — digitar segue pelos controles. -->
+    <a-entity id="handR" hand-tracking-controls="hand: right" grab-manager poke-typist></a-entity>
+    <a-entity id="handL" hand-tracking-controls="hand: left" grab-manager poke-typist></a-entity>
+
+    <!-- Luz ambiente suave pra legibilidade fora do AR (no AR o
+         passthrough domina; o flat shader do painel ignora luz). -->
+    <a-entity light="type: ambient; intensity: 0.9"></a-entity>
+
+    <a-camera position="0 1.6 0" wasd-controls="enabled: false"></a-camera>
+  </a-scene>
+
+  <script>
+    // Sinaliza no HUD se o headset suporta o modo imersivo de AR.
+    (function () {
+      var span = document.getElementById('xr-support');
+      if (navigator.xr && navigator.xr.isSessionSupported) {
+        navigator.xr.isSessionSupported('immersive-ar').then(function (ok) {
+          span.textContent = ok
+            ? 'immersive-ar OK → toque em "Enter AR".'
+            : 'immersive-ar indisponível — usando magic window.';
+        }).catch(function () {
+          span.textContent = 'WebXR indisponível — magic window.';
+        });
+      } else {
+        span.textContent = 'WebXR indisponível — magic window.';
+      }
+    })();
+
+    // Botão grande → entra na sessão imersiva de AR (gesto do usuário).
+    // enterAR() resolve quando a sessão XR inicia; o frame loop dela roda
+    // independente da visibilidade da aba flat.
+    (function () {
+      var btn = document.getElementById('enter-ar');
+      var err = document.getElementById('enter-err');
+      var ov = document.getElementById('enter-overlay');
+      var sc = document.querySelector('a-scene');
+      btn.addEventListener('click', function () {
+        err.textContent = '';
+        if (!sc) { err.textContent = 'cena não montou'; return; }
+        Promise.resolve(sc.enterAR()).catch(function (e) {
+          err.textContent = 'AR falhou: ' + (e && e.message ? e.message : e);
+        });
+      });
+      // Some o botão grande "Entrar em AR" DENTRO da sessão; volta ao sair.
+      // (A barra de input #xr-overlay fica sempre renderizada — ver CSS.)
+      if (sc) {
+        sc.addEventListener('enter-vr', function () {
+          ov.classList.add('hidden');
+          // A janela do /xr pode estar "hidden" (não-focada no browser do
+          // Quest) → o A-Frame nunca disparou o requestAnimationFrame que
+          // inicia o render loop, então a cena fica congelada (sem painel).
+          // Já em sessão imersiva, play() arranca o loop pelo frame loop do
+          // XR, que roda independente da visibilidade da aba flat.
+          try { sc.play(); } catch (e) {}
+        });
+        sc.addEventListener('exit-vr', function () { ov.classList.remove('hidden'); });
+      }
+    })();
+
+  </script>
+</body>
+</html>

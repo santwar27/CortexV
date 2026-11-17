@@ -1,0 +1,238 @@
+.sidebar > :not(.recent) { flex-shrink: 0; }
+.recent { min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+.recent-row { position: relative; }
+.recent-row .recent-chat { padding-right: 36px; }
+.recent-delete {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--muted);
+  opacity: 0;
+}
+.recent-row:hover .recent-delete,
+.recent-row:focus-within .recent-delete { opacity: 1; }
+.recent-delete:hover { color: var(--accent); background: var(--surface-hover); }
+.projects-empty { color: var(--muted); font-size: 12px; }
+.resume-card { flex-wrap: wrap; }
+.resume-copy { flex-basis: 160px; min-width: 0; overflow-wrap: anywhere; }
+#delete-project { color: var(--muted); min-height: 44px; }
+#delete-project:hover { color: var(--accent); background: var(--surface-hover); }
+#delete-project:disabled { opacity: .4; cursor: default; }
+.create-chooser {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 auto 18px;
+}
+.create-chooser[hidden] { display: none; }
+.create-chooser button {
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.create-chooser button:hover,
+.create-chooser button[aria-pressed="true"] { color: var(--text); background: var(--surface-hover); }
+.create-chooser button[aria-pressed="true"] { border-color: var(--muted); }
+.create-chooser button:focus-visible { outline-offset: 2px; }
+@media (hover: none) {
+  .recent-delete { opacity: 1; }
+}
+.regen-button { display: block; min-height: 24px; min-width: 24px; margin-top: 7px; padding: 3px 0; font-size: 11px; color: var(--muted); opacity: 0; }
+.assistant:hover .regen-button,
+.assistant:focus-within .regen-button { opacity: 1; }
+.regen-button:hover { color: var(--accent); }
+/* Zero-size anchors keep the bubble and its text unchanged by indicators. */
+.reply-dots, .reply-cursor {
+  position: relative;
+  display: inline-block;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.reply-dots i {
+  position: absolute;
+  left: 4px;
+  bottom: 2px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: reply-pulse 1.2s ease-in-out infinite;
+}
+.reply-dots i:nth-child(2) { left: 10px; animation-delay: .16s; }
+.reply-dots i:nth-child(3) { left: 16px; animation-delay: .32s; }
+.reply-cursor::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  bottom: -2px;
+  width: 1px;
+  height: 1em;
+  background: var(--accent);
+  animation: reply-blink 1s step-end infinite;
+}
+@keyframes reply-pulse {
+  0%, 60%, 100% { opacity: .3; }
+  30% { opacity: 1; }
+}
+@keyframes reply-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+body.reduced-motion .reply-dots i,
+body.reduced-motion .reply-cursor::after { animation: none; opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .reply-dots i, .reply-cursor::after { animation: none; opacity: 1; }
+}
+.recent h2:has(.recent-select) { display: flex; align-items: center; justify-content: space-between; }
+/* Expand the hit area without making the Recentes title taller. */
+.recent-select {
+  display: inline-flex; align-items: center; min-height: 24px; min-width: 24px;
+  margin: -6px 0; padding: 0; font-size: 10px; font-weight: 400; letter-spacing: 0; color: var(--muted);
+}
+.recent-select:hover, .select-bar button:hover { color: var(--accent); }
+.select-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 0 13px 8px; font-size: 10px; color: var(--muted); }
+.select-bar span { flex: 1; }
+.select-bar button { min-height: 24px; min-width: 24px; padding: 3px 0; }
+.select-bar button:disabled { opacity: .4; cursor: default; }
+.selecting .recent-row { display: flex; align-items: center; }
+.selecting .recent-chat { min-width: 0; padding-right: 13px; }
+.recent-check { margin: 0 0 0 13px; flex-shrink: 0; }
+.metric-list-title { margin: 20px 0 10px; font-size: 11px; font-weight: 500; color: var(--muted); }
+.metric-facts dt, .metric-facts dd { min-width: 0; overflow-wrap: anywhere; }
+.metric-ack {
+  margin-top: 10px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.metric-ack:hover { color: var(--text); background: var(--surface-hover); }
+.metric-ack:disabled { opacity: .4; cursor: default; }
+.metric-decisions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -6px 0 16px;
+}
+.metric-decisions .metric-ack { margin-top: 0; }
+.metric-preview {
+  margin: 8px 0 16px;
+  padding: 12px 15px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.pending-card, .effect-notice {
+  max-width: 940px;
+  margin: 0 auto 10px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.pending-card { padding: 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); }
+.pending-card h2 { margin: 0; font-size: 12px; font-weight: 500; color: var(--text); }
+.pending-card p { margin: 5px 0; }
+.pending-card summary { cursor: pointer; }
+.pending-preview {
+  max-width: 100%;
+  max-height: 30dvh;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  color: var(--text);
+}
+.pending-card button, .effect-notice button, .effect-mark button {
+  max-width: 100%;
+  padding: 5px 9px;
+  margin: 6px 6px 0 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+.pending-card button:hover, .effect-notice button:hover, .effect-mark button:hover { color: var(--text); background: var(--surface-hover); }
+.pending-card button:disabled { opacity: .4; cursor: default; }
+.effect-notice { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.effect-notice button, .effect-mark button { margin: 0; }
+.effect-mark {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  margin-top: 6px; color: var(--muted); font-size: 11px; line-height: 1.6;
+}
+/* Keep the header's vertical footprint while enlarging Sair's hit area. */
+.logout {
+  display: inline-flex; align-items: center; min-height: 24px; min-width: 24px;
+  margin: -6px 0; color: var(--muted); font-size: 10px; text-decoration: none; white-space: nowrap;
+}
+.logout:hover { color: var(--text); }
+.topbar .breadcrumb { min-width: 0; overflow-wrap: anywhere; }
+.top-right { flex-shrink: 0; }
+#option-contacts { grid-column: 1 / -1; }
+.contacts-form, .contacts-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.contacts-form input {
+  flex: 1 1 180px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  background: var(--surface);
+  font-size: 12px;
+}
+.contacts-form .metric-ack, .contacts-row .metric-ack { margin-top: 0; }
+.contacts-message, .contacts-list { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.contacts-row { align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.contacts-actions { display: flex; gap: 8px; flex: 0 0 auto; margin-left: auto; }
+.contacts-row > strong, .contacts-row > span { flex: 1 1 120px; min-width: 0; }
+.contacts-row > strong { color: var(--text); font-weight: 500; }
+@media (hover: none) {
+  .regen-button { opacity: 1; }
+}
+@media (max-width: 800px) {
+  /* Catch the dismissing tap above the conversation and below the sidebar (5). */
+  .sidebar.open + .workspace::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 4;
+    background: rgba(0, 0, 0, .20);
+    pointer-events: auto;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  body.light .sidebar.open + .workspace::after {
+    background: rgba(0, 0, 0, .12);
+  }
+  body.reduced-motion .sidebar.open + .workspace::after {
+    transition: none;
+    animation: none;
+  }
+  :root body input,
+  :root body textarea,
+  :root body select {
+    font-size: 16px;
+  }
+}
+/* The phone field uses 16px text (no focus zoom), which made the hint wrap onto a
+   second, cut-off line. The hint alone is smaller there and never wraps; the
+   typed text keeps its 16px, so the zoom fix is unaffected. */
+.composer textarea::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 800px) {
+  .composer textarea::placeholder { font-size: 13px; }
+}

@@ -1,0 +1,171 @@
+#!/usr/bin/env bash
+# Cortex pre-push hook — last gate before the SHARED origin/main.
+#
+# Why pre-push on top of pre-commit? Because `git commit --no-verify` can
+# slip a broken commit past the commit gate, and in the relay scheme the
+# *shared* origin/main is what the other Claude pulls to resume. Pre-push
+# is the last line before a regression becomes someone else's problem.
+#
+# ⚠️ WHY THIS HOOK IS NO LONGER "just run everything" (s82). Git's order of
+# operations is: (1) open the SSH connection and negotiate refs, (2) run
+# THIS hook, (3) transfer the objects. The suite had grown to ~7 minutes,
+# and GitHub drops an SSH connection left idle that long — so step 3 wrote
+# to a dead socket and git died with SIGPIPE (exit 141), SILENTLY: no error
+# line, no transfer, and a hook that had just printed "all green". Two
+# pushes were lost that way before the cause was found ("Connection to
+# github.com closed by remote host" appears mid-pytest in the log).
+#
+# So the hook must be FAST in the common case. It is, because the work is
+# almost always already done: pre-commit ran the same suite on the very
+# tree we are about to push. This hook now VERIFIES that rather than
+# repeating it — it keeps a ledger of trees that passed a full run, and
+# only pays the seven minutes when it cannot prove the state is green.
+#
+# What is checked, and what that guarantees:
+#   - The TIP tree of each ref being pushed must have passed a full run.
+#     That is the state landing on the shared remote, which is what the
+#     relay pulls. Intermediate commits are pre-commit's job, not this
+#     hook's — re-verifying them is exactly the cost that broke pushing.
+#   - A tree made with `git commit --no-verify` is NOT in the ledger, so
+#     it still triggers the full suite here. The original reason for this
+#     hook survives intact.
+#
+# Self-healing: when a full run IS needed and passes, the tree is recorded.
+# If the long run cost you the SSH connection, just `git push` again — the
+# second attempt is instant.
+#
+# Verify ahead of time (recommended before a big push):
+#     bash scripts/pre-push --record
+# runs the full suite now and records the tree, so the push itself is fast.
+#
+# Installed via `bash scripts/install-hooks.sh`. Skip in emergencies with
+# `git push --no-verify`, but DON'T make it a habit.
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+# The ledger of trees that passed a full run. Lives in .git/ on purpose:
+# it is a fact about THIS clone's verification history, not shared state,
+# and it must never be pushed. Losing it is safe — the hook just falls
+# back to running the suite.
+LEDGER=".git/cortex-verified-trees"
+LEDGER_MAX=200
+
+RECORD_MODE=0
+[ "${1:-}" = "--record" ] && RECORD_MODE=1
+
+tree_of() { git rev-parse "$1^{tree}" 2>/dev/null || true; }
+
+is_verified() {
+    [ -f "$LEDGER" ] || return 1
+    grep -qxF "$1" "$LEDGER"
+}
+
+record_tree() {
+    [ -n "$1" ] || return 0
+    mkdir -p "$(dirname "$LEDGER")"
+    echo "$1" >> "$LEDGER"
+    # Keep the ledger bounded; it is a cache, not history.
+    if [ "$(wc -l < "$LEDGER")" -gt "$LEDGER_MAX" ]; then
+        tail -n "$LEDGER_MAX" "$LEDGER" > "$LEDGER.tmp" && mv "$LEDGER.tmp" "$LEDGER"
+    fi
+}
+
+# --- .env guard ------------------------------------------
+# Last line of defense before origin/main (which the relay scheme pulls).
+# pre-commit blocks staging an env file, but `git commit --no-verify` can
+# slip one into history. Here we check the *tracked* tree at HEAD: if a real
+# env file is committed, refuse to push it to the shared remote. Cheap
+# (`git ls-files`, no LLM, no I/O) so it ALWAYS runs — never skipped by the
+# ledger, because it costs milliseconds and guards a secret.
+# Templates are allowed.
+TRACKED_ENV="$(git ls-files \
+    | grep -E '(^|/)\.env([./]|$)|\.env$' \
+    | grep -vE '\.(example|sample|template|dist)$' || true)"
+if [ -n "$TRACKED_ENV" ]; then
+    echo "[pre-push] ✗ BLOCKED: tracked env file(s) that may hold secrets:"
+    echo "$TRACKED_ENV" | sed 's/^/               /'
+    echo "           Remove from git (git rm --cached <file>), then rotate any"
+    echo "           key it held — assume it leaked. Override: git push --no-verify"
+    exit 1
+fi
+
+# --- Which trees are about to reach the remote? --------------------------
+# Git feeds one line per ref on stdin:
+#   <local ref> <local sha> <remote ref> <remote sha>
+# A local sha of all-zeros is a DELETION (nothing to verify).
+ZERO="0000000000000000000000000000000000000000"
+TREES=""
+if [ "$RECORD_MODE" -eq 1 ]; then
+    TREES="$(tree_of HEAD)"
+else
+    while read -r _local_ref local_sha _remote_ref _remote_sha; do
+        [ -z "${local_sha:-}" ] && continue
+        [ "$local_sha" = "$ZERO" ] && continue
+        t="$(tree_of "$local_sha")"
+        [ -n "$t" ] && TREES="$TREES $t"
+    done
+    # No refs on stdin means we could not determine what is being pushed —
+    # fail SAFE by verifying HEAD rather than waving the push through.
+    [ -z "${TREES// /}" ] && TREES="$(tree_of HEAD)"
+fi
+
+NEEDS_RUN=0
+for t in $TREES; do
+    if ! is_verified "$t"; then NEEDS_RUN=1; fi
+done
+
+if [ "$NEEDS_RUN" -eq 0 ] && [ "$RECORD_MODE" -eq 0 ]; then
+    echo "[pre-push] ✓ tree already verified by the commit gate — skipping the"
+    echo "           re-run (see the header for why this hook must stay fast)."
+    exit 0
+fi
+
+# Say WHY we are about to spend seven minutes before checking anything
+# else — otherwise a missing venv looks like the hook's whole story.
+echo "[pre-push] ▸ unverified tree — running the full suite (~7 min)."
+echo "           If the push then fails with a closed connection, just run"
+echo "           it again: this result is recorded and the retry is instant."
+
+PY="venv/bin/python"
+if [ ! -x "$PY" ]; then
+    echo "[pre-push] ERROR: venv/bin/python not found at $PY"
+    echo "           Run from the repo root with the venv installed."
+    exit 1
+fi
+
+# Separate log from pre-commit so the two gates don't clobber each other.
+LOG="logs/pre-push.log"
+mkdir -p logs
+
+echo "[pre-push] ▸ running pytest" | tee "$LOG"
+if ! "$PY" -m pytest -q --tb=short 2>&1 | tee -a "$LOG"; then
+    echo
+    echo "[pre-push] ✗ pytest failed — push blocked."
+    echo "           See logs/pre-push.log for full output."
+    echo "           Skip with: git push --no-verify (use sparingly)."
+    exit 1
+fi
+
+echo
+echo "[pre-push] ▸ running behavioural evals" | tee -a "$LOG"
+if ! "$PY" -m evals 2>&1 | tee -a "$LOG"; then
+    echo
+    echo "[pre-push] ✗ evals failed — push blocked."
+    echo "           A regression reached a commit. Fix it before it"
+    echo "           lands on origin/main and the next relay session"
+    echo "           pulls it. Skip with: git push --no-verify (sparingly)."
+    exit 1
+fi
+
+for t in $TREES; do record_tree "$t"; done
+
+echo
+if [ "$RECORD_MODE" -eq 1 ]; then
+    echo "[pre-push] ✓ all green — tree recorded. The next push will be instant."
+else
+    echo "[pre-push] ✓ all green — push allowed"
+fi
+exit 0

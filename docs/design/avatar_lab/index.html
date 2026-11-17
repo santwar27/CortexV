@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>CORTEX · Avatar lab</title>
+  <link rel="icon" href="/src/ui/static/novo/avatar/duckcortex.png">
+  <link rel="stylesheet" href="/src/ui/static/novo/style.css">
+  <link rel="stylesheet" href="/src/ui/static/novo/secundario.css">
+  <link rel="stylesheet" href="avatar.css">
+  <script src="avatar.js" defer></script>
+</head>
+<body>
+<div class="app-shell chat-view" data-ui>
+  <aside class="sidebar" aria-label="Navegação de demonstração">
+    <div class="brand"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5" stroke-dasharray="7.5 2"/><path d="M5 5c4 4 4 10 0 14M19 5c-4 4-4 10 0 14"/></svg><span>CORTEX</span></div>
+    <div class="new-chat"><span class="plus">＋</span> Nova conversa</div>
+    <nav class="main-nav" aria-label="Tela de exemplo">
+      <div class="nav-item">Início</div><div class="nav-item">Projetos</div><div class="nav-item active" aria-current="page">Conversas</div>
+    </nav>
+    <div class="nav-section"><h2>Projetos</h2><div class="nav-item">Cortex</div></div>
+    <div class="nav-section recent"><h2>Recentes</h2><div class="nav-item">O pato do Cortex</div><div class="nav-item">Treino de tênis</div></div>
+    <div class="sidebar-bottom"><span><i class="status-dot"></i><small>Simulação local</small></span></div>
+  </aside>
+  <main class="workspace">
+    <header class="topbar">
+      <div class="breadcrumb"><span>CORTEX <span class="slash">/</span> Conversas</span></div>
+      <div class="top-right"><span class="privacy">Fake UI · sem conexão</span></div>
+    </header>
+    <section class="lab-controls" aria-labelledby="lab-title">
+      <div class="lab-heading"><h1 id="lab-title">Avatar lab</h1><p>O pato no chat. Experimente um estado.</p></div>
+      <div class="lab-fields">
+        <label>Estado<select id="state-select">
+          <option value="idle">Em repouso</option>
+          <option value="thinking">Pensando</option>
+          <option value="searching">Buscando na web</option>
+          <option value="reading">Lendo</option>
+          <option value="writing">Escrevendo</option>
+          <option value="remembering">Lembrando</option>
+          <option value="listening">Ouvindo</option>
+          <option value="speaking">Respondendo</option>
+          <option value="processing">Processando</option>
+        </select></label>
+        <label>Resposta de exemplo<select id="reply-demo-mode" aria-controls="reply-demo">
+          <option value="auto">Turno automático</option>
+          <option value="thinking">Fixar: pensando</option>
+          <option value="searching">Fixar: buscando</option>
+          <option value="reading">Fixar: lendo</option>
+          <option value="writing">Fixar: escrevendo</option>
+          <option value="remembering">Fixar: lembrando</option>
+          <option value="processing">Fixar: processando</option>
+          <option value="off">Sem demonstração</option>
+        </select></label>
+        <button type="button" id="reply-arrive" aria-controls="reply-demo">Chegar texto</button>
+        <label>Tamanho<select id="size-select"><option value="96">96 px</option><option value="128">128 px</option><option value="144">144 px</option></select></label>
+        <label>Cor da chuva<select id="rain-colour"><option value="green">Verde Matrix</option><option value="cyan">Ciano do visor</option></select></label>
+        <label class="lab-check"><input type="checkbox" id="light-theme"> Tema claro</label>
+        <label class="lab-check"><input type="checkbox" id="reduce-motion"> Reduzir movimento</label>
+        <button type="button" id="compare-original" aria-pressed="false" aria-controls="comparison">Repouso = original</button>
+        <button type="button" id="compare-sizes" aria-pressed="false" aria-controls="size-comparison">Comparar tamanhos</button>
+        <button type="button" id="wave-hello">Dar oi</button>
+        <button type="button" id="happy-pedro">Pedro feliz (raquete)</button>
+        <button type="button" id="random-gesture">Gesto aleatório agora</button>
+      </div>
+      <p id="motion-note" class="lab-note">Gestos em repouso · pausa ao sair desta aba.</p>
+    </section>
+    <div class="chat-frame">
+      <div class="duck-dock">
+        <div id="duck" class="duck" role="img" aria-label="Pato do Cortex · Em repouso" data-state="idle" data-eyes="open" data-part="none" data-gesture="none" data-frozen="false" data-reduced="false" data-paused="false">
+          <div class="duck-body"><div class="duck-pose">
+            <svg class="duck-racket" viewBox="0 0 1254 1254" shape-rendering="crispEdges" aria-hidden="true"></svg>
+            <img class="duck-source" src="/src/ui/static/novo/avatar/duckcortex.png" width="1254" height="1254" alt="" draggable="false">
+            <div class="duck-face">
+              <img class="duck-part duck-head" src="/src/ui/static/novo/avatar/duckcortex.png" width="1254" height="1254" alt="" draggable="false">
+              <span class="duck-effect eye-patch left-eye"></span><span class="duck-effect eye-patch right-eye"></span>
+              <div class="duck-eye-window left-eye-window"><img class="duck-part eye-copy left-eye-copy" src="/src/ui/static/novo/avatar/duckcortex.png" width="1254" height="1254" alt="" draggable="false"></div>
+              <div class="duck-eye-window right-eye-window"><img class="duck-part eye-copy right-eye-copy" src="/src/ui/static/novo/avatar/duckcortex.png" width="1254" height="1254" alt="" draggable="false"></div>
+              <span class="duck-effect antenna-glow"></span><span class="duck-effect ear-glow"></span><span class="duck-effect eye-glow left-eye"></span><span class="duck-effect eye-glow right-eye"></span>
+            </div>
+            <img class="duck-part duck-wing" src="/src/ui/static/novo/avatar/duckcortex.png" width="1254" height="1254" alt="" draggable="false">
+            <span class="duck-effect wing-glow"></span>
+          </div></div>
+        </div>
+        <span id="duck-state" role="status">Em repouso</span>
+      </div>
+      <section class="stage" aria-label="Núcleo CORTEX · exemplo estático">
+        <div class="orb-container"><svg class="lab-orb" viewBox="0 0 174 174" role="img" aria-label="Núcleo estático"><g transform="translate(87 87)"><circle r="62"/><ellipse rx="67" ry="23" transform="rotate(30)"/><ellipse rx="67" ry="38" transform="rotate(65)"/><ellipse rx="64" ry="27" transform="rotate(115)"/><ellipse rx="64" ry="44" transform="rotate(155)"/><ellipse rx="27" ry="62"/><path d="M-54-30 0-62 54-30 54 30 0 62-54 30Z M-54-30 54 30M54-30-54 30M0-62 0 62M-62 0 62 0"/></g></svg></div>
+        <div class="orb-status"><i class="status-dot"></i><span>Núcleo · prévia estática</span></div>
+      </section>
+      <div class="content-scroll">
+        <section id="size-comparison" class="comparison" aria-labelledby="sizes-title" hidden>
+          <h2 id="sizes-title">Comparar tamanhos</h2>
+          <p>96 / 128 / 144 px · mesmo estado e gestos em sincronia. No celular, deslize para ver os três.</p>
+          <div id="size-previews" class="size-previews"></div>
+        </section>
+        <section id="comparison" class="comparison" aria-labelledby="comparison-title" hidden>
+          <h2 id="comparison-title">Repouso = original</h2>
+          <p>O pato no canto está congelado, sem efeitos. Abaixo: o mesmo componente em repouso e o PNG original.</p>
+          <div class="comparison-pair">
+            <figure><div class="duck duck-rest"><div class="duck-body"><div class="duck-pose"><img class="duck-source" src="/src/ui/static/novo/avatar/duckcortex.png" width="1254" height="1254" alt="Componente em repouso, sem efeitos"></div></div></div><figcaption>Componente · sem efeitos</figcaption></figure>
+            <figure><img class="plain-original" src="/src/ui/static/novo/avatar/duckcortex.png" width="1254" height="1254" alt="PNG original de Pedro"><figcaption>PNG original</figcaption></figure>
+          </div>
+        </section>
+        <section class="messages" aria-label="Conversa de exemplo">
+          <article class="message user"><div class="message-content"><p>Quero o pato aqui no chat. O núcleo continua no lugar dele.</p></div></article>
+          <article class="message assistant"><div class="avatar" aria-hidden="true">C</div><div class="message-content"><span class="author">CORTEX</span><p>Aqui estou. Um pouco de vida no canto, com o desenho que você criou.</p></div></article>
+          <article class="message user"><div class="message-content"><p>E quando estiver pensando ou lendo?</p></div></article>
+          <article class="message assistant"><div class="avatar" aria-hidden="true">C</div><div class="message-content"><span class="author">CORTEX</span><p>Escolha um estado no laboratório. Você também pode comparar os tamanhos e conferir o repouso ao lado do original.</p></div></article>
+          <article id="reply-demo" class="message assistant"><div class="avatar" aria-hidden="true">C</div><div class="message-content"><span class="author">CORTEX · turno de exemplo</span><p id="reply-progress"><span id="reply-head" class="reply-head" data-state="thinking" aria-hidden="true"><span class="reply-head-motion"><span class="reply-head-file"><img src="/src/ui/static/novo/avatar/duckcortex.png" width="1254" height="1254" alt="" draggable="false"><span class="antenna-glow"></span><span class="ear-glow"></span><span class="eye-patch left-eye"></span><span class="eye-patch right-eye"></span></span></span></span>pensando…<span class="reply-dots" aria-hidden="true"><i></i><i></i><i></i></span></p></div></article>
+        </section>
+      </div>
+    </div>
+    <footer class="composer-area"><div class="composer"><label class="sr-only" for="mock-message">Mensagem de exemplo</label><textarea id="mock-message" rows="1" placeholder="Escreva aqui · oi, adorei! (Enter envia)"></textarea><button class="send" type="button" aria-label="Adicionar mensagem local">↑</button></div><p class="composer-note"><span>Enter envia · Shift+Enter quebra linha.</span><span>Laboratório local · nada é enviado</span></p></footer>
+  </main>
+</div>
+<noscript><p class="no-script">Ative JavaScript para experimentar os estados. O desenho original permanece visível.</p></noscript>
+</body>
+</html>
